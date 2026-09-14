@@ -1,4 +1,4 @@
-name: Build, Test and Push Docker Images
+name: Build, Lint and Push Multiarch Docker Images
 
 on:
   push:
@@ -16,8 +16,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build Docker Image for Testing
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Run ShellCheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck -s bash \
+            bootstrap \
+            valheim-bootstrap \
+            valheim-server \
+            valheim-updater \
+            valheim-backup \
+            valheim-is-idle \
+            valheim-tests \
+            valheim-plus-updater \
+            bepinex-updater \
+            common \
+            defaults \
+            valheim-arch-diagnostics \
+            steamcmd-wrapper \
+            valheim-wrapper \
+            tests/oracle-arm64-smoke-test.sh
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose -f docker-compose.yaml config >/dev/null
+          docker compose -f docker-compose.oracle-arm64.yml config >/dev/null
+
+  build-test-amd64:
+    name: Build Docker Image for Testing (amd64)
+    needs: lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,9 +85,9 @@ jobs:
           path: valheim-test.tar
           retention-days: 1
 
-  test:
-    name: Run Test Matrix
-    needs: build
+  test-amd64:
+    name: Run Test Matrix (amd64)
+    needs: build-test-amd64
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,10 +123,38 @@ jobs:
             valheim-test
           docker exec valheim-test-${{ matrix.config.name }} /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
 
+  build-arm64-check:
+    name: Build ARM64 Image (Buildx Verification)
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU for multiarch build
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 image (verification only, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+            BOX64_TARGET=ARM64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   build_and_push:
-    name: Build and Push Docker Image
+    name: Build and Push Multiarch Docker Image
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    needs: test
+    needs: [test-amd64, build-arm64-check]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,6 +164,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -109,30 +175,30 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/community-valheim-tools/valheim-server
+            ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{version}}
             type=sha
+            type=raw,value=latest-arm64,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
           labels: |
             org.opencontainers.image.title=valheim-server
-            org.opencontainers.image.description=Valheim Server
+            org.opencontainers.image.description=Valheim Server Docker (Multiarch ARM64/AMD64)
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.source=https://github.com/community-valheim-tools/valheim-server-docker
-            org.opencontainers.image.documentation=https://github.com/community-valheim-tools/valheim-server-docker/blob/main/README.md
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
-      - name: Build and push Docker image
+      - name: Build and push multiarch Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           build-args: SOURCE_COMMIT=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -144,7 +210,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           GENERATED_NOTES=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="${{ github.ref_name }}" -q .body)
-          printf '## Container Image\n```\ndocker pull ghcr.io/community-valheim-tools/valheim-server:%s\n```\n\n%s\n' "${{ steps.meta.outputs.version }}" "$GENERATED_NOTES" > release-notes.md
+          printf '## Container Image\n```\ndocker pull ghcr.io/%s:%s\n```\n\n%s\n' "${{ github.repository }}" "${{ steps.meta.outputs.version }}" "$GENERATED_NOTES" > release-notes.md
           gh release create "${{ github.ref_name }}" --notes-file release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
