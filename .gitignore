@@ -23,3 +23,6 @@ venv*
 /config/
 *.code-workspace
 valheim.env
+valheim-data/
+*.key
+*.pem
