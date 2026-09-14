@@ -103,3 +103,36 @@ Cuando el contenedor recibe una orden de parada (`docker compose stop`):
 - **Vanilla Valheim**: `SUPPORTED` (Probado y optimizado).
 - **BepInEx x64 (Doorstop)**: `EXPERIMENTAL`. Box64 puede cargar `libdoorstop_x64.so` y ensamblados .NET Mono, pero plugins nativos que dependan de instrucciones específicas pueden presentar inestabilidad.
 - **ValheimPlus**: `EXPERIMENTAL`.
+
+---
+
+## 8. Soporte de Crossplay Multiplataforma (PlayFab Party) en ARM64
+
+### El Desafío Técnico de Crossplay en ARM64
+En Valheim, el modo `-crossplay` permite que jugadores de **Nintendo Switch 2, PlayStation (PS4/PS5), Xbox (One / Series X|S) y PC (Steam / Xbox PC App)** jueguen en el mismo servidor dedicado.
+
+Este sistema está gestionado por **Microsoft Azure PlayFab Party** a través del plugin nativo x86_64 `valheim_server_Data/Plugins/libparty.so`.
+
+En entornos ARM64 con emulación Box64 estándar, la carga de `libparty.so` fallaba históricamente por dos motivos críticos:
+1. **Librería dinámica Ogg no declarada**: `libparty.so` utiliza 14 funciones de `libogg` (`ogg_stream_packetin`, `ogg_sync_init`, `ogg_stream_pageout_fill`, etc.), pero los desarrolladores no incluyeron la entrada `DT_NEEDED [libogg.so.0]` en la sección dinámica del ELF. En consecuencia, el cargador de Box64 no enlazaba la librería nativa de audio.
+2. **Funciones no expuestas en el wrapper de Box64**: En Box64 v0.4.4, la función `ogg_stream_pageout_fill` se encontraba comentada en `src/wrapped/wrappedlibogg_private.h`. Al intentar resolver la tabla PLT, Box64 arrojaba:
+   ```text
+   [BOX64] Error: Symbol ogg_stream_packetin not found, cannot apply R_X86_64_JUMP_SLOT ... in libparty.so
+   [BOX64] Error initializing needed lib /opt/valheim/server/valheim_server_Data/Plugins/libparty.so
+   DllNotFoundException: libParty.so
+   ```
+
+### Solución Implementada en Este Fork
+1. **Parche a Box64 (`scripts/patch-box64.sh`)**: Durante el build de Docker, se descomentan y habilitan todas las funciones de Ogg en `wrappedlibogg_private.h`, asegurando una cobertura del 100% de la API de `libogg.so.0`.
+2. **Inyección de dependencia dinámica (`valheim-wrapper`)**: Se utiliza `patchelf --add-needed libogg.so.0` sobre `libparty.so` y se define `BOX64_LD_PRELOAD="libogg.so.0"`, garantizando que `libparty.so` resuelva todos los símbolos de inmediato.
+3. **Capa nativa de red y audio**: Se incluyen las librerías nativas `libogg0`, `libatomic1`, `libpulse0` y `libpulse-mainloop-glib0` en el contenedor.
+
+### Cómo Conectarse al Servidor desde Cada Plataforma
+
+| Plataforma | Método de Conexión | Instrucciones |
+| :--- | :--- | :--- |
+| **Nintendo Switch 2** | **Join Code (Código de Unión)** | En el menú del juego, ir a **Unirse a partida** > Marcar **Crossplay** > Introducir el **Join Code** de 6 dígitos mostrado en los registros del servidor (ej. `459186`). |
+| **PlayStation (PS4 / PS5)** | **Join Code** | Ir a **Unirse a partida** > Activar Crossplay > Introducir el **Join Code**. También se puede añadir a Favoritos mediante IP:Port si la red de la consola lo permite. |
+| **Xbox One / Series X\|S** | **Join Code** | Ir a **Unirse a partida** > Activar Crossplay > Introducir el **Join Code**. |
+| **PC (Steam / Xbox App / PC Game Pass)** | **IP Directa o Join Code** | - Por IP directa: Añadir `51.170.55.235:2456` a los favoritos de Steam o conexión directa en el juego.<br>- Por Crossplay: Introducir el **Join Code**. |
+
