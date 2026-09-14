@@ -120,7 +120,7 @@ ARG BOX64_TARGET=ARM64
 RUN mkdir -p /install/usr/local/bin /install/etc; \
     if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
         apt-get update && apt-get -y --no-install-recommends install \
-            build-essential cmake git ca-certificates \
+            build-essential cmake git ca-certificates python3 \
         && git clone --depth 1 --branch "${BOX64_VERSION}" https://github.com/ptitSeb/box64.git /build/box64 \
         && cd /build/box64 \
         && mkdir build && cd build \
@@ -142,7 +142,7 @@ RUN mkdir -p /install/usr/local/bin; \
     if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
         dpkg --add-architecture armhf \
         && apt-get update && apt-get -y --no-install-recommends install \
-            build-essential cmake git ca-certificates gcc-arm-linux-gnueabihf libc6-dev:armhf \
+            build-essential cmake git ca-certificates gcc-arm-linux-gnueabihf libc6-dev:armhf python3 \
         && git clone --depth 1 --branch "${BOX86_VERSION}" https://github.com/ptitSeb/box86.git /build/box86 \
         && cd /build/box86 \
         && mkdir build && cd build \
