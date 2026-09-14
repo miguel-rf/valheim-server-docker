@@ -24,6 +24,9 @@ case "$ARCH" in
             exit 127
         fi
 
+        # Force SteamCMD to select the 32-bit x86 binary (linux32) for Box86 emulation
+        export STEAM_PLATFORM="linux32"
+
         # Configure Box86 library search paths for Debian multiarch
         export BOX86_LD_LIBRARY_PATH="/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:${BOX86_LD_LIBRARY_PATH:-}"
         DEBUGGER="$(command -v box86 2>/dev/null || echo /usr/local/bin/box86)"

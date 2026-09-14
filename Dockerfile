@@ -257,6 +257,7 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
     && ln -s /usr/local/bin/busybox /usr/local/sbin/syslogd \
     && curl -L -o /tmp/steamcmd_linux.tar.gz https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
     && tar xzvf /tmp/steamcmd_linux.tar.gz -C /opt/steamcmd/ \
+    && ln -sf /opt/steamcmd/linux32 /opt/steamcmd/linuxarm64 \
     && chown -R valheim:valheim /var/run/valheim \
     && chown -R root:root /opt/steamcmd \
     && chmod u=rwx,go=rx /opt/steamcmd/steamcmd.sh \
