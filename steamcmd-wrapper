@@ -1,0 +1,42 @@
+#!/bin/bash
+# steamcmd-wrapper provides transparent architecture detection and
+# Box86 emulation for Valve SteamCMD on ARM64 / AArch64 systems.
+
+set -e
+
+STEAMCMD_DIR="${STEAMCMD_DIR:-/opt/steamcmd}"
+STEAMCMD_SH="$STEAMCMD_DIR/steamcmd.sh"
+
+if [ ! -f "$STEAMCMD_SH" ]; then
+    echo "[STEAMCMD-WRAPPER] Error: SteamCMD script not found at $STEAMCMD_SH" >&2
+    exit 1
+fi
+
+ARCH="$(uname -m)"
+
+case "$ARCH" in
+    x86_64|amd64|i386|i686)
+        exec "$STEAMCMD_SH" "$@"
+        ;;
+    aarch64|arm64)
+        if ! command -v box86 >/dev/null 2>&1; then
+            echo "[STEAMCMD-WRAPPER] Error: Box86 is required to run 32-bit x86 SteamCMD on $ARCH but is not installed." >&2
+            exit 127
+        fi
+
+        # Configure Box86 library search paths for Debian multiarch
+        export BOX86_LD_LIBRARY_PATH="/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:${BOX86_LD_LIBRARY_PATH:-}"
+        export DEBUGGER="$(command -v box86)"
+
+        # Workaround for SteamCMD CPU Frequency warning on ARM virtual CPUs
+        if [ -z "${CPU_MHZ:-}" ]; then
+            export CPU_MHZ="1500.000"
+        fi
+
+        exec "$STEAMCMD_SH" "$@"
+        ;;
+    *)
+        echo "[STEAMCMD-WRAPPER] Error: Unsupported host architecture: $ARCH" >&2
+        exit 1
+        ;;
+esac

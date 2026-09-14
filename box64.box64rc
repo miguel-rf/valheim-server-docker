@@ -1,0 +1,11 @@
+# Box64 configuration for Valheim Dedicated Server on ARM64 / Ampere A1
+
+[*]
+BOX64_LOG=1
+
+[valheim_server.x86_64]
+# Unity games require strong memory ordering on ARM64 to prevent race conditions
+BOX64_DYNAREC_STRONGMEM=2
+BOX64_DYNAREC_BIGBLOCK=0
+BOX64_DYNAREC_BLEEDING_EDGE=0
+BOX64_DYNAREC_SAFEFLAGS=1

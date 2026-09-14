@@ -1,0 +1,59 @@
+#!/bin/bash
+# valheim-wrapper launches the Valheim Dedicated Server binary,
+# applying Box64 emulation and memory consistency optimizations on ARM64.
+
+set -e
+
+if [ $# -lt 1 ]; then
+    echo "[VALHEIM-WRAPPER] Usage: $0 <path_to_valheim_server_binary> [server_args...]" >&2
+    exit 1
+fi
+
+VALHEIM_BIN="$1"
+shift
+
+if [ ! -f "$VALHEIM_BIN" ]; then
+    echo "[VALHEIM-WRAPPER] Error: Valheim server binary not found at $VALHEIM_BIN" >&2
+    exit 1
+fi
+
+ARCH="$(uname -m)"
+
+case "$ARCH" in
+    x86_64|amd64)
+        exec "$VALHEIM_BIN" "$@"
+        ;;
+    aarch64|arm64)
+        if ! command -v box64 >/dev/null 2>&1; then
+            echo "[VALHEIM-WRAPPER] Error: Box64 is required to run x86_64 Valheim on $ARCH but is not installed." >&2
+            exit 127
+        fi
+
+        # Unity Engine on ARM64 requires strong memory ordering emulation
+        # to prevent thread races and deadlocks.
+        # BOX64_DYNAREC_STRONGMEM:
+        #   1 = basic memory barriers
+        #   2 = strict memory ordering (recommended for Unity/Valheim stability)
+        export BOX64_DYNAREC_STRONGMEM="${BOX64_DYNAREC_STRONGMEM:-2}"
+        export BOX64_DYNAREC_BIGBLOCK="${BOX64_DYNAREC_BIGBLOCK:-0}"
+        export BOX64_DYNAREC_BLEEDING_EDGE="${BOX64_DYNAREC_BLEEDING_EDGE:-0}"
+        export BOX64_LOG="${BOX64_LOG:-1}"
+
+        # Ensure Steam client library can be found by Unity Steamworks
+        SERVER_DIR="$(cd "$(dirname "$VALHEIM_BIN")" && pwd)"
+        if [ -f "$SERVER_DIR/linux64/steamclient.so" ]; then
+            mkdir -p "$HOME/.steam/sdk64"
+            ln -sf "$SERVER_DIR/linux64/steamclient.so" "$HOME/.steam/sdk64/steamclient.so" 2>/dev/null || true
+        fi
+
+        echo "[VALHEIM-WRAPPER] Starting Valheim x86_64 via Box64 on $ARCH (STRONGMEM=$BOX64_DYNAREC_STRONGMEM)"
+
+        # Use exec so Box64 replaces this shell and directly receives signals
+        # (SIGINT, SIGTERM) from supervisord / valheim-server process group.
+        exec box64 "$VALHEIM_BIN" "$@"
+        ;;
+    *)
+        echo "[VALHEIM-WRAPPER] Error: Unsupported host architecture: $ARCH" >&2
+        exit 1
+        ;;
+esac

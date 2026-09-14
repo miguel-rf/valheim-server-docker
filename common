@@ -58,6 +58,8 @@ cmd_valheim_status=/usr/local/bin/valheim-status
 cmd_valheim_is_idle=/usr/local/bin/valheim-is-idle
 cmd_valheim_logfilter=/usr/local/bin/valheim-logfilter
 cmd_supervisorctl=/usr/local/bin/supervisorctl
+cmd_valheim_wrapper=${cmd_valheim_wrapper:-/usr/local/bin/valheim-wrapper}
+cmd_steamcmd_wrapper=${cmd_steamcmd_wrapper:-/usr/local/bin/steamcmd-wrapper}
 
 # Syslog supervisor config file
 supervisor_syslog_conf=/usr/local/etc/supervisor/conf.d/syslog.conf
