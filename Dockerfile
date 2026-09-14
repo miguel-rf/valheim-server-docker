@@ -158,7 +158,8 @@ RUN mkdir -p /install/usr/local/bin; \
 FROM debian:trixie-slim AS i386-libs
 ENV DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
-RUN mkdir -p /install/lib /install/lib/i386-linux-gnu /install/usr/lib/i386-linux-gnu; \
+RUN set -e; \
+    mkdir -p /install/usr/lib; \
     if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
         dpkg --add-architecture i386 \
         && apt-get update \
@@ -167,9 +168,9 @@ RUN mkdir -p /install/lib /install/lib/i386-linux-gnu /install/usr/lib/i386-linu
             libstdc++6:i386 \
             libsdl2-2.0-0:i386 \
             libcurl4:i386 \
-        && cp -a /lib/ld-linux.so.2 /install/lib/ 2>/dev/null || true \
-        && cp -a /lib/i386-linux-gnu/* /install/lib/i386-linux-gnu/ 2>/dev/null || true \
-        && cp -a /usr/lib/i386-linux-gnu/* /install/usr/lib/i386-linux-gnu/ 2>/dev/null || true; \
+        && mkdir -p /install/usr/lib/i386-linux-gnu \
+        && cp -a /usr/lib/i386-linux-gnu/* /install/usr/lib/i386-linux-gnu/ 2>/dev/null || true \
+        && if [ -f /usr/lib/ld-linux.so.2 ]; then cp -a /usr/lib/ld-linux.so.2 /install/usr/lib/; fi; \
     fi
 
 
