@@ -38,9 +38,9 @@ services:
       - ./valheim-data/config:/config
       # Dedicated server files downloaded via SteamCMD
       - ./valheim-data/server:/opt/valheim
- 
-     env_file:
-       - valheim.env
+
+    env_file:
+      - valheim.env
 
     # Resource limits recommended for Oracle Cloud Ampere A1 (Always Free tier offers up to 4 OCPUs and 24 GB RAM)
     deploy:
