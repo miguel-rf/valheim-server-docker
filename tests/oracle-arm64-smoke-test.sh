@@ -163,12 +163,27 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
     fi
 
     # 12. Valheim Executable Architecture Check
-    info "Step 12/12: Checking valheim_server.x86_64 binary inside container..."
+    info "Step 12/13: Checking valheim_server.x86_64 binary inside container..."
     if docker exec "$CONTAINER_NAME" test -f /opt/valheim/server/valheim_server.x86_64 2>/dev/null; then
         ELF_TYPE="$(docker exec "$CONTAINER_NAME" file /opt/valheim/server/valheim_server.x86_64 2>/dev/null || echo 'ELF')"
         pass "valheim_server.x86_64 verified: $ELF_TYPE"
     else
         info "Server binary not yet downloaded into /opt/valheim/server (valheim-updater may still be downloading)"
+    fi
+
+    # 13. Crossplay & PlayFab Party Check
+    info "Step 13/13: Checking Crossplay & PlayFab Party state..."
+    IS_CROSSPLAY="$(docker exec "$CONTAINER_NAME" env 2>/dev/null | grep -i '^CROSSPLAY=' | cut -d= -f2 || echo 'false')"
+    if [ "$IS_CROSSPLAY" = "true" ]; then
+        if docker logs --tail=100 "$CONTAINER_NAME" 2>&1 | grep -iq "Session .* registered with join code"; then
+            JOIN_CODE="$(docker logs --tail=100 "$CONTAINER_NAME" 2>&1 | grep -i "registered with join code" | tail -n1 | grep -oE '[0-9]{5,8}' || echo 'OK')"
+            pass "PlayFab Crossplay active with Join Code: $JOIN_CODE"
+        else
+            warn "Crossplay enabled but join code not detected in recent logs yet"
+        fi
+    else
+        info "Crossplay is disabled (standard Steam backend active)"
+        pass "Standard backend check OK"
     fi
 else
     warn "Container '$CONTAINER_NAME' is not currently running."
