@@ -38,7 +38,7 @@ RUN set -eu; \
     done; \
     echo "${BUSYBOX_SHA256}  /tmp/busybox.tar.bz2" | sha256sum -c -; \
     tar xjf /tmp/busybox.tar.bz2 --strip-components=1 -C /build/busybox; \
-    make olddefconfig; \
+    yes "" | make oldconfig || true; \
     make -j"$(nproc)"; \
     cp busybox /usr/local/bin/
 
