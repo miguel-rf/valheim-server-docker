@@ -1,5 +1,6 @@
 FROM debian:trixie-slim AS build-env
 ENV DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
 ARG TESTS
 ARG SOURCE_COMMIT
 ARG BUSYBOX_VERSION=1.36.1
@@ -12,10 +13,11 @@ RUN apt-get update
 RUN apt-get -y install apt-utils
 RUN apt-get -y install build-essential curl git python3 python3-pip python3-venv shellcheck
 
-# Install Go 1.24 manually
-RUN curl -L -o /tmp/go${GO_VERSION}.linux-amd64.tar.gz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go${GO_VERSION}.linux-amd64.tar.gz \
-    && rm /tmp/go${GO_VERSION}.linux-amd64.tar.gz
+# Install Go 1.24 manually according to TARGETARCH (amd64 or arm64)
+RUN ARCH="${TARGETARCH:-amd64}" \
+    && curl -L -o /tmp/go${GO_VERSION}.linux-${ARCH}.tar.gz https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go${GO_VERSION}.linux-${ARCH}.tar.gz \
+    && rm /tmp/go${GO_VERSION}.linux-${ARCH}.tar.gz
 ENV PATH=$PATH:/usr/local/go/bin
 ENV GOPATH=/go
 ENV PATH=$PATH:$GOPATH/bin
@@ -23,6 +25,9 @@ ENV PATH=$PATH:$GOPATH/bin
 WORKDIR /build/busybox
 COPY ./busybox.config /build/busybox/.config
 RUN set -eu; \
+    if [ "${TARGETARCH:-amd64}" != "amd64" ] && [ "${TARGETARCH:-amd64}" != "386" ]; then \
+        sed -i 's/CONFIG_STACK_OPTIMIZATION_386=y/# CONFIG_STACK_OPTIMIZATION_386 is not set/' /build/busybox/.config; \
+    fi; \
     for base in \
         https://sources.buildroot.net/busybox \
         https://downloads.yoctoproject.org/mirror/sources \
@@ -33,6 +38,7 @@ RUN set -eu; \
     done; \
     echo "${BUSYBOX_SHA256}  /tmp/busybox.tar.bz2" | sha256sum -c -; \
     tar xjf /tmp/busybox.tar.bz2 --strip-components=1 -C /build/busybox; \
+    make olddefconfig; \
     make -j"$(nproc)"; \
     cp busybox /usr/local/bin/
 
@@ -65,6 +71,7 @@ COPY valheim-updater /usr/local/bin/
 COPY valheim-plus-updater /usr/local/bin/
 COPY bepinex-updater /usr/local/bin/
 COPY valheim-server /usr/local/bin/
+COPY valheim-arch-diagnostics /usr/local/bin/
 COPY defaults /usr/local/etc/valheim/
 COPY common /usr/local/etc/valheim/
 COPY contrib/* /usr/local/share/valheim/contrib/
@@ -80,6 +87,7 @@ RUN if [ "${TESTS:-true}" = true ]; then \
     /usr/local/bin/valheim-updater \
     /usr/local/bin/valheim-plus-updater \
     /usr/local/bin/bepinex-updater \
+    /usr/local/bin/valheim-arch-diagnostics \
     /usr/local/share/valheim/contrib/*.sh \
     ; \
     fi
