@@ -101,17 +101,17 @@ fi
 
 # 6. SteamCMD Operational Check via Box86
 info "Step 6/12: Testing SteamCMD execution through Box86 wrapper..."
-if docker run --rm --entrypoint /usr/local/bin/steamcmd-wrapper "$IMAGE_TAG" +login anonymous +quit 2>&1 | grep -iq "waiting for user info"; then
+STEAM_OUT="$(docker run --rm --entrypoint /usr/local/bin/steamcmd-wrapper "$IMAGE_TAG" +login anonymous +quit 2>&1 || true)"
+if echo "$STEAM_OUT" | grep -iq "waiting for user info" || echo "$STEAM_OUT" | grep -iq "Steam"; then
     pass "SteamCMD executed successfully under Box86"
-elif docker run --rm --entrypoint /usr/local/bin/steamcmd-wrapper "$IMAGE_TAG" +quit 2>&1 | grep -iq "Steam"; then
-    pass "SteamCMD executed and returned Steam prompt"
 else
     fail "SteamCMD wrapper execution failed"
 fi
 
 # 7. Check SteamCMD App Update Capability (dry/info check)
 info "Step 7/12: Testing SteamCMD App 896660 query capability..."
-if docker run --rm --entrypoint /usr/local/bin/steamcmd-wrapper "$IMAGE_TAG" +login anonymous +app_info_print 896660 +quit 2>&1 | grep -iq "896660"; then
+APP_OUT="$(docker run --rm --entrypoint /usr/local/bin/steamcmd-wrapper "$IMAGE_TAG" +login anonymous +app_info_print 896660 +quit 2>&1 || true)"
+if echo "$APP_OUT" | grep -iq "896660"; then
     pass "SteamCMD can query Valheim Dedicated Server app 896660"
 else
     warn "SteamCMD query returned warning (network or rate limit may apply); non-blocking"
@@ -131,10 +131,10 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}\$"; then
     pass "Container $CONTAINER_NAME is currently running"
 
     # Check process supervisor
-    if docker exec "$CONTAINER_NAME" supervisorctl status >/dev/null 2>&1; then
-        pass "supervisord is managing processes"
+    if docker exec "$CONTAINER_NAME" supervisorctl status valheim-server 2>&1 | grep -q "RUNNING"; then
+        pass "supervisord is managing processes (valheim-server is RUNNING)"
     else
-        warn "supervisord not yet responding to supervisorctl"
+        warn "supervisord not yet reporting valheim-server as RUNNING"
     fi
 
     # 10. UDP Ports check
