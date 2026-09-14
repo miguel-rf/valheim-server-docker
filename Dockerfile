@@ -155,16 +155,22 @@ RUN mkdir -p /install/usr/local/bin; \
     fi
 
 
-FROM --platform=linux/386 debian:buster-slim AS i386-libs
+FROM debian:trixie-slim AS i386-libs
 ENV DEBIAN_FRONTEND=noninteractive
-RUN sed -i -E 's/(deb|security).debian.org/archive.debian.org/g' /etc/apt/sources.list \
-    && apt-get update \
-    && apt-get -y --no-install-recommends install \
-    libc6-dev \
-    libstdc++6 \
-    libsdl2-2.0-0 \
-    libcurl4 \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+ARG TARGETARCH
+RUN mkdir -p /install/lib /install/lib/i386-linux-gnu /install/usr/lib/i386-linux-gnu; \
+    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
+        dpkg --add-architecture i386 \
+        && apt-get update \
+        && apt-get -y --no-install-recommends install \
+            libc6:i386 \
+            libstdc++6:i386 \
+            libsdl2-2.0-0:i386 \
+            libcurl4:i386 \
+        && cp -a /lib/ld-linux.so.2 /install/lib/ 2>/dev/null || true \
+        && cp -a /lib/i386-linux-gnu/* /install/lib/i386-linux-gnu/ 2>/dev/null || true \
+        && cp -a /usr/lib/i386-linux-gnu/* /install/usr/lib/i386-linux-gnu/ 2>/dev/null || true; \
+    fi
 
 
 FROM debian:trixie-slim
@@ -173,9 +179,7 @@ ARG TARGETARCH
 COPY --from=build-env /usr/local/ /usr/local/
 COPY --from=box64-builder /install/ /
 COPY --from=box86-builder /install/ /
-COPY --from=i386-libs /lib/ld-linux.so.2 /lib/ld-linux.so.2
-COPY --from=i386-libs /lib/i386-linux-gnu /lib/i386-linux-gnu
-COPY --from=i386-libs /usr/lib/i386-linux-gnu /usr/lib/i386-linux-gnu
+COPY --from=i386-libs /install/ /
 COPY fake-supervisord /usr/bin/supervisord
 COPY box64.box64rc /etc/box64.box64rc
 
