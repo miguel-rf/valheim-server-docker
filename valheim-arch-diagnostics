@@ -1,0 +1,98 @@
+#!/bin/bash
+# valheim-arch-diagnostics prints architecture, emulation, library,
+# and environment details to assist in troubleshooting ARM64/Box64/Box86 setups.
+
+set -u
+
+echo "============================================================"
+echo "          Valheim Server Architecture Diagnostics           "
+echo "============================================================"
+echo
+
+echo "--- [1] System Architecture ---"
+echo "Kernel:             $(uname -a 2>/dev/null || echo 'N/A')"
+echo "Machine (uname -m): $(uname -m 2>/dev/null || echo 'N/A')"
+if command -v dpkg >/dev/null 2>&1; then
+    echo "dpkg primary arch:  $(dpkg --print-architecture 2>/dev/null || echo 'N/A')"
+    echo "dpkg foreign arch:  $(dpkg --print-foreign-architectures 2>/dev/null | tr '\n' ' ' || echo 'none')"
+    echo
+fi
+
+echo "--- [2] Box64 (x86_64 Emulation) ---"
+if command -v box64 >/dev/null 2>&1; then
+    echo "Binary:             $(command -v box64)"
+    echo "Version:            $(box64 -v 2>&1 | head -n 1)"
+    if [ -f /etc/box64.box64rc ]; then
+        echo "Config (/etc/box64.box64rc): Present"
+    else
+        echo "Config (/etc/box64.box64rc): Not found"
+    fi
+else
+    echo "Box64 status:       NOT INSTALLED"
+fi
+echo
+
+echo "--- [3] Box86 (x86 32-bit Emulation) ---"
+if command -v box86 >/dev/null 2>&1; then
+    echo "Binary:             $(command -v box86)"
+    echo "Version:            $(box86 -v 2>&1 | head -n 1)"
+else
+    echo "Box86 status:       NOT INSTALLED"
+fi
+echo
+
+echo "--- [4] SteamCMD Status ---"
+if [ -f "/opt/steamcmd/steamcmd.sh" ]; then
+    echo "Script:             /opt/steamcmd/steamcmd.sh (Present)"
+else
+    echo "Script:             /opt/steamcmd/steamcmd.sh (Missing)"
+fi
+
+if [ -f "/opt/steamcmd/linux32/steamcmd" ]; then
+    echo "Executable:         /opt/steamcmd/linux32/steamcmd (Present)"
+    if command -v file >/dev/null 2>&1; then
+        echo "Binary ELF type:    $(file -b /opt/steamcmd/linux32/steamcmd)"
+    fi
+else
+    echo "Executable:         /opt/steamcmd/linux32/steamcmd (Not installed yet)"
+fi
+echo
+
+echo "--- [5] Valheim Server Executable ---"
+for vpath in "/opt/valheim/server/valheim_server.x86_64" "/opt/valheim/dl/server/valheim_server.x86_64"; do
+    if [ -f "$vpath" ]; then
+        echo "Location:           $vpath"
+        if command -v file >/dev/null 2>&1; then
+            echo "Binary ELF type:    $(file -b "$vpath")"
+        fi
+        if command -v box64 >/dev/null 2>&1; then
+            echo "Box64 ELF check:    Supported"
+        fi
+    fi
+done
+if [ ! -f "/opt/valheim/server/valheim_server.x86_64" ] && [ ! -f "/opt/valheim/dl/server/valheim_server.x86_64" ]; then
+    echo "Valheim binary:     Not yet downloaded"
+fi
+echo
+
+echo "--- [6] Environment & Library Paths ---"
+echo "LD_LIBRARY_PATH:    ${LD_LIBRARY_PATH:-<unset>}"
+echo "DEBUGGER:           ${DEBUGGER:-<unset>}"
+env | grep -E '^BOX(64|86)_' | sort || echo "No custom BOX64/BOX86 env vars set"
+echo
+
+echo "--- [7] Storage & Memory ---"
+echo "Storage (/opt/valheim and /config):"
+df -h /opt/valheim /config 2>/dev/null || df -h / 2>/dev/null
+echo
+echo "Memory overview:"
+if [ -f /proc/meminfo ]; then
+    grep -E '^(MemTotal|MemFree|MemAvailable):' /proc/meminfo
+else
+    echo "Cannot read /proc/meminfo"
+fi
+echo
+
+echo "============================================================"
+echo "                 End of Diagnostics                         "
+echo "============================================================"
