@@ -46,32 +46,30 @@ services:
       # User and group IDs matching host user permissions
       - PUID=${PUID:-1001}
       - PGID=${PGID:-1001}
-      - TZ=Etc/UTC
+      - TZ=${TZ:-Etc/UTC}
 
       # Dedicated Server Core Settings
-      - SERVER_NAME=Valheim ARM64 Oracle
-      - WORLD_NAME=Dedicated
-      # Replace SERVER_PASS with a secure password (minimum 5 characters, cannot be in server name)
-      # Passwords should preferably be kept in valheim.env and never committed to git.
-      - SERVER_PASS=ChangeMeSecret123
-      - SERVER_PUBLIC=1
+      - SERVER_NAME=${SERVER_NAME:-Valheim ARM64 Oracle}
+      - WORLD_NAME=${WORLD_NAME:-Dedicated}
+      - SERVER_PASS=${SERVER_PASS:-ChangeMeSecret123}
+      - SERVER_PUBLIC=${SERVER_PUBLIC:-1}
 
       # Box64 Optimizations for Ampere A1 (ARM64)
       # STRONGMEM=2 guarantees memory consistency barrier insertion for Unity engine on ARM weak memory model
-      - BOX64_DYNAREC_STRONGMEM=2
-      - BOX64_DYNAREC_BIGBLOCK=0
-      - BOX64_DYNAREC_BLEEDING_EDGE=0
-      - BOX64_LOG=1
+      - BOX64_DYNAREC_STRONGMEM=${BOX64_DYNAREC_STRONGMEM:-2}
+      - BOX64_DYNAREC_BIGBLOCK=${BOX64_DYNAREC_BIGBLOCK:-0}
+      - BOX64_DYNAREC_BLEEDING_EDGE=${BOX64_DYNAREC_BLEEDING_EDGE:-0}
+      - BOX64_LOG=${BOX64_LOG:-1}
 
       # Automated Backups
-      - BACKUPS=true
-      - BACKUPS_CRON=0 * * * *
-      - BACKUPS_MAX_AGE=7
-      - BACKUPS_ZIP=true
+      - BACKUPS=${BACKUPS:-true}
+      - BACKUPS_CRON=${BACKUPS_CRON:-0 * * * *}
+      - BACKUPS_MAX_AGE=${BACKUPS_MAX_AGE:-7}
+      - BACKUPS_ZIP=${BACKUPS_ZIP:-true}
 
       # Automated Updates
-      - UPDATE_CRON=*/30 * * * *
-      - UPDATE_IF_IDLE=true
+      - UPDATE_CRON=${UPDATE_CRON:-*/30 * * * *}
+      - UPDATE_IF_IDLE=${UPDATE_IF_IDLE:-true}
 
     # Resource limits recommended for Oracle Cloud Ampere A1 (Always Free tier offers up to 4 OCPUs and 24 GB RAM)
     deploy:
