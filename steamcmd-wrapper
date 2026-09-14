@@ -26,7 +26,8 @@ case "$ARCH" in
 
         # Configure Box86 library search paths for Debian multiarch
         export BOX86_LD_LIBRARY_PATH="/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:${BOX86_LD_LIBRARY_PATH:-}"
-        export DEBUGGER="$(command -v box86)"
+        DEBUGGER="$(command -v box86)"
+        export DEBUGGER
 
         # Workaround for SteamCMD CPU Frequency warning on ARM virtual CPUs
         if [ -z "${CPU_MHZ:-}" ]; then

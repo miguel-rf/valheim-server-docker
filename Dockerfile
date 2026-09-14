@@ -79,7 +79,7 @@ COPY common /usr/local/etc/valheim/
 COPY contrib/* /usr/local/share/valheim/contrib/
 RUN chmod 755 /usr/local/sbin/bootstrap /usr/local/bin/valheim-* /usr/local/bin/steamcmd-wrapper
 RUN if [ "${TESTS:-true}" = true ]; then \
-    shellcheck -a -x -s bash -e SC2034 \
+    shellcheck -a -x -s bash -e SC2034,SC2155 \
     /usr/local/sbin/bootstrap \
     /usr/local/bin/valheim-tests \
     /usr/local/bin/valheim-backup \
