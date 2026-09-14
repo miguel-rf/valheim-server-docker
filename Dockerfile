@@ -72,10 +72,12 @@ COPY valheim-plus-updater /usr/local/bin/
 COPY bepinex-updater /usr/local/bin/
 COPY valheim-server /usr/local/bin/
 COPY valheim-arch-diagnostics /usr/local/bin/
+COPY steamcmd-wrapper /usr/local/bin/
+COPY valheim-wrapper /usr/local/bin/
 COPY defaults /usr/local/etc/valheim/
 COPY common /usr/local/etc/valheim/
 COPY contrib/* /usr/local/share/valheim/contrib/
-RUN chmod 755 /usr/local/sbin/bootstrap /usr/local/bin/valheim-*
+RUN chmod 755 /usr/local/sbin/bootstrap /usr/local/bin/valheim-* /usr/local/bin/steamcmd-wrapper
 RUN if [ "${TESTS:-true}" = true ]; then \
     shellcheck -a -x -s bash -e SC2034 \
     /usr/local/sbin/bootstrap \
@@ -88,6 +90,8 @@ RUN if [ "${TESTS:-true}" = true ]; then \
     /usr/local/bin/valheim-plus-updater \
     /usr/local/bin/bepinex-updater \
     /usr/local/bin/valheim-arch-diagnostics \
+    /usr/local/bin/steamcmd-wrapper \
+    /usr/local/bin/valheim-wrapper \
     /usr/local/share/valheim/contrib/*.sh \
     ; \
     fi
@@ -108,6 +112,49 @@ RUN mkdir -p /usr/local/etc/supervisor/conf.d/ \
 RUN echo "${SOURCE_COMMIT:-unknown}" > /usr/local/etc/git-commit.HEAD
 
 
+FROM debian:trixie-slim AS box64-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+ARG BOX64_VERSION=v0.4.4
+ARG BOX64_TARGET=ARM64
+RUN mkdir -p /install/usr/local/bin /install/etc; \
+    if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
+        apt-get update && apt-get -y --no-install-recommends install \
+            build-essential cmake git ca-certificates \
+        && git clone --depth 1 --branch "${BOX64_VERSION}" https://github.com/ptitSeb/box64.git /build/box64 \
+        && cd /build/box64 \
+        && mkdir build && cd build \
+        && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -D${BOX64_TARGET}=ON -DARM_DYNAREC=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        && make -j"$(nproc)" \
+        && make install DESTDIR=/install \
+        && if [ ! -f /install/usr/local/bin/box64 ] && [ -f /install/usr/bin/box64 ]; then \
+               cp /install/usr/bin/box64 /install/usr/local/bin/; \
+           fi; \
+    fi
+
+
+FROM debian:trixie-slim AS box86-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+ARG BOX86_VERSION=v0.3.8
+ARG BOX86_TARGET=ARM64
+RUN mkdir -p /install/usr/local/bin; \
+    if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
+        dpkg --add-architecture armhf \
+        && apt-get update && apt-get -y --no-install-recommends install \
+            build-essential cmake git ca-certificates gcc-arm-linux-gnueabihf libc6-dev:armhf \
+        && git clone --depth 1 --branch "${BOX86_VERSION}" https://github.com/ptitSeb/box86.git /build/box86 \
+        && cd /build/box86 \
+        && mkdir build && cd build \
+        && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -D${BOX86_TARGET}=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        && make -j"$(nproc)" \
+        && make install DESTDIR=/install \
+        && if [ ! -f /install/usr/local/bin/box86 ] && [ -f /install/usr/bin/box86 ]; then \
+               cp /install/usr/bin/box86 /install/usr/local/bin/; \
+           fi; \
+    fi
+
+
 FROM --platform=linux/386 debian:buster-slim AS i386-libs
 ENV DEBIAN_FRONTEND=noninteractive
 RUN sed -i -E 's/(deb|security).debian.org/archive.debian.org/g' /etc/apt/sources.list \
@@ -122,14 +169,21 @@ RUN sed -i -E 's/(deb|security).debian.org/archive.debian.org/g' /etc/apt/source
 
 FROM debian:trixie-slim
 ENV DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
 COPY --from=build-env /usr/local/ /usr/local/
+COPY --from=box64-builder /install/ /
+COPY --from=box86-builder /install/ /
 COPY --from=i386-libs /lib/ld-linux.so.2 /lib/ld-linux.so.2
 COPY --from=i386-libs /lib/i386-linux-gnu /lib/i386-linux-gnu
 COPY --from=i386-libs /usr/lib/i386-linux-gnu /usr/lib/i386-linux-gnu
 COPY fake-supervisord /usr/bin/supervisord
+COPY box64.box64rc /etc/box64.box64rc
 
 RUN groupadd -g "${PGID:-0}" -o valheim \
     && useradd -g "${PGID:-0}" -u "${PUID:-0}" -o --create-home valheim \
+    && if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
+        dpkg --add-architecture armhf; \
+    fi \
     && apt-get update \
     && apt-get -y --no-install-recommends install apt-utils \
     && apt-get -y dist-upgrade \
@@ -154,6 +208,14 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
     libatomic1 \
     libc6 \
     tini \
+    file \
+    && if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
+        apt-get -y --no-install-recommends install \
+            libc6:armhf \
+            libstdc++6:armhf \
+            libcurl4:armhf \
+            libsdl2-2.0-0:armhf; \
+    fi \
     && echo 'LANG="en_US.UTF-8"' > /etc/default/locale \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && rm -f /bin/sh \
@@ -196,8 +258,11 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
     /opt/steamcmd/linux32/steamcmd \
     /opt/steamcmd/linux32/steamerrorreporter \
     /usr/bin/supervisord \
+    /usr/local/bin/steamcmd-wrapper \
+    /usr/local/bin/valheim-wrapper \
+    /usr/local/bin/valheim-arch-diagnostics \
     && cd "/opt/steamcmd" \
-    && su - valheim -c "/opt/steamcmd/steamcmd.sh +login anonymous +quit" \
+    && su - valheim -c "/usr/local/bin/steamcmd-wrapper +login anonymous +quit || true" \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && date --utc --iso-8601=seconds > /usr/local/etc/build.date
 
