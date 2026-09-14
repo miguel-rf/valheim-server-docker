@@ -19,14 +19,14 @@ case "$ARCH" in
         exec "$STEAMCMD_SH" "$@"
         ;;
     aarch64|arm64)
-        if ! command -v box86 >/dev/null 2>&1; then
+        if ! command -v box86 >/dev/null 2>&1 && [ ! -x /usr/local/bin/box86 ]; then
             echo "[STEAMCMD-WRAPPER] Error: Box86 is required to run 32-bit x86 SteamCMD on $ARCH but is not installed." >&2
             exit 127
         fi
 
         # Configure Box86 library search paths for Debian multiarch
         export BOX86_LD_LIBRARY_PATH="/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu:${BOX86_LD_LIBRARY_PATH:-}"
-        DEBUGGER="$(command -v box86)"
+        DEBUGGER="$(command -v box86 2>/dev/null || echo /usr/local/bin/box86)"
         export DEBUGGER
 
         # Workaround for SteamCMD CPU Frequency warning on ARM virtual CPUs

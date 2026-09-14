@@ -24,7 +24,7 @@ case "$ARCH" in
         exec "$VALHEIM_BIN" "$@"
         ;;
     aarch64|arm64)
-        if ! command -v box64 >/dev/null 2>&1; then
+        if ! command -v box64 >/dev/null 2>&1 && [ ! -x /usr/local/bin/box64 ]; then
             echo "[VALHEIM-WRAPPER] Error: Box64 is required to run x86_64 Valheim on $ARCH but is not installed." >&2
             exit 127
         fi
@@ -50,7 +50,8 @@ case "$ARCH" in
 
         # Use exec so Box64 replaces this shell and directly receives signals
         # (SIGINT, SIGTERM) from supervisord / valheim-server process group.
-        exec box64 "$VALHEIM_BIN" "$@"
+        BOX64_BIN="$(command -v box64 2>/dev/null || echo /usr/local/bin/box64)"
+        exec "$BOX64_BIN" "$VALHEIM_BIN" "$@"
         ;;
     *)
         echo "[VALHEIM-WRAPPER] Error: Unsupported host architecture: $ARCH" >&2

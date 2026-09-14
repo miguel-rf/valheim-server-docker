@@ -218,8 +218,8 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
         apt-get -y --no-install-recommends install \
             libc6:armhf \
             libstdc++6:armhf \
-            libcurl4:armhf \
-            libsdl2-2.0-0:armhf; \
+            libsdl2-2.0-0:armhf \
+        && (apt-get -y --no-install-recommends install libcurl4t64:armhf 2>/dev/null || apt-get -y --no-install-recommends install libcurl4:armhf); \
     fi \
     && echo 'LANG="en_US.UTF-8"' > /etc/default/locale \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
