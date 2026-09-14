@@ -3,7 +3,15 @@
 ![Valheim](https://raw.githubusercontent.com/community-valheim-tools/valheim-server-docker/main/misc/Logo_valheim.png "Valheim")
 
 Valheim Server in a Docker Container (with [BepInEx](#bepinexpack-valheim) and [ValheimPlus](#valheimplus) support)  
-This project is hosted at [https://github.com/community-valheim-tools/valheim-server-docker](https://github.com/community-valheim-tools/valheim-server-docker)
+This project is a fork of [community-valheim-tools/valheim-server-docker](https://github.com/community-valheim-tools/valheim-server-docker) with **native ARM64 / AArch64 support (Box64/Box86)** optimized for Oracle Cloud Ampere A1.
+
+> [!NOTE]
+> **Documentación del Fork ARM64:**
+> - [Arquitectura ARM64 (Box64 & Box86)](docs/ARM64.md)
+> - [Guía de Despliegue en Oracle Cloud Ampere A1](docs/ORACLE-CLOUD.md)
+> - [Resolución de Problemas (Troubleshooting ARM64)](docs/TROUBLESHOOTING-ARM64.md)
+> - [Registro de Cambios (CHANGELOG-ARM64)](CHANGELOG-ARM64.md)
+> - [Plantilla Compose Oracle ARM64](docker-compose.oracle-arm64.yml)
 
 # Table of contents
 
