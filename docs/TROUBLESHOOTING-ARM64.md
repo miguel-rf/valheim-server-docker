@@ -1,143 +1,151 @@
-# Guía de Resolución de Problemas (Troubleshooting ARM64)
+# ARM64 Troubleshooting Guide (TROUBLESHOOTING-ARM64)
 
-Esta guía recopila soluciones a fallos comunes en entornos ARM64 / AArch64 con Box64 y Box86.
+This guide provides solutions to common issues encountered in ARM64 / AArch64 environments running Valheim under Box64 and Box86.
 
 ---
 
-## 1. Comprobación Inicial de Diagnóstico
+## 1. Initial Diagnostic Check
 
-Ante cualquier comportamiento anómalo, ejecuta primero la herramienta integrada de diagnóstico:
+If you encounter unexpected behavior, run the integrated architecture diagnostics tool first:
 
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml exec valheim valheim-arch-diagnostics
 ```
 
-Este comando verifica la arquitectura del kernel, la presencia de Box64/Box86, el tipo ELF de los binarios descargados, librerías disponibles y variables de entorno activas.
+This command inspects kernel architecture, Box64/Box86 presence, ELF binary types of downloaded assets, available libraries, and active environment variables.
 
 ---
 
-## 2. Errores de Arquitectura y ELF
+## 2. Architecture and ELF Binary Errors
 
 ### Error: `Exec format error`
-- **Causa:** Se está intentando ejecutar un binario x86 o x86_64 directamente en la CPU ARM64 sin pasar por el emulador adecuado, o el script wrapper no tiene permisos de ejecución.
-- **Diagnóstico:**
+- **Cause:** An x86 or x86_64 binary is being executed directly on the ARM64 CPU without the required emulator wrapper, or the wrapper script lacks execution permissions.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml exec valheim file /opt/valheim/server/valheim_server.x86_64
   ```
-- **Solución:** Comprueba que `valheim-server` invoca `/usr/local/bin/valheim-wrapper` y que Box64 está instalado en `/usr/local/bin/box64`.
+- **Solution:** Verify that `valheim-server` invokes `/usr/local/bin/valheim-wrapper` and that Box64 is installed at `/usr/local/bin/box64`.
 
-### Error: `Box64 not found` o `Box86 not found`
-- **Causa:** La etapa de compilación de Box64 o Box86 en el Dockerfile fue omitida (por ejemplo, si se construyó con un `TARGETARCH` incorrecto) o los binarios no se copiaron en `/usr/local/bin`.
-- **Diagnóstico:**
+### Error: `Box64 not found` or `Box86 not found`
+- **Cause:** The Box64 or Box86 compilation stage in the Dockerfile was skipped (e.g., if built with an incorrect `TARGETARCH`) or the binaries failed to copy into `/usr/local/bin`.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml exec valheim which box64 box86
   ```
-- **Solución:** Reconstruye la imagen asegurando que el contexto de build tiene `TARGETARCH=arm64`:
+- **Solution:** Rebuild the container ensuring the build context targets `TARGETARCH=arm64`:
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml build --no-cache
   ```
 
-### Error: `missing ELF interpreter` o `No such file or directory` al ejecutar un binario existente
-- **Causa:** El binario existe, pero el cargador dinámico (`ld-linux.so.2` o `/lib/ld-linux-armhf.so.3`) o las librerías compartidas fundamentales no se encuentran en las rutas estándar.
-- **Diagnóstico:**
+### Error: `missing ELF interpreter` or `No such file or directory` when running an existing binary
+- **Cause:** The binary exists, but the dynamic loader (`ld-linux.so.2` or `/lib/ld-linux-armhf.so.3`) or foundational shared libraries are not found in standard system search paths.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml exec valheim ls -l /lib/ld* /lib/arm-linux-gnueabihf/ld*
   ```
-- **Solución:** Comprueba que la arquitectura `armhf` está añadida (`dpkg --print-foreign-architectures`) y que los paquetes `libc6:armhf` y `libstdc++6:armhf` están instalados.
+- **Solution:** Check that the `armhf` foreign architecture is enabled (`dpkg --print-foreign-architectures`) and that `libc6:armhf` and `libstdc++6:armhf` are installed.
 
 ---
 
-## 3. Fallos en SteamCMD
+## 3. SteamCMD Issues
 
-### Fallo: `SteamCMD crash` o congelación en `Loading Steam API...`
-- **Causa:** Conflicto con la emulación de frecuencias de CPU en máquinas virtuales ARM o librerías SDL/Curl incompletas.
-- **Diagnóstico:**
+### Issue: `SteamCMD crash` or hang at `Loading Steam API...`
+- **Cause:** Conflict with CPU frequency reporting on ARM virtual machines or incomplete SDL/cURL dynamic libraries.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml exec valheim /usr/local/bin/steamcmd-wrapper +login anonymous +quit
   ```
-- **Solución:** Comprueba que la variable `CPU_MHZ=1500.000` está exportada (el wrapper `steamcmd-wrapper` lo hace automáticamente si no está definida en `/proc/cpuinfo`).
+- **Solution:** Ensure the environment variable `CPU_MHZ=1500.000` is exported (`steamcmd-wrapper` sets this automatically if `/proc/cpuinfo` lacks frequency data).
 
-### Fallo: `missing shared library` (`libstdc++.so.6` o `libcurl.so.4`)
-- **Causa:** Box86 no encuentra las librerías nativas `armhf` o las librerías x86 de respaldo.
-- **Solución:** Verifica que `BOX86_LD_LIBRARY_PATH` contiene:
+### Issue: `missing shared library` (`libstdc++.so.6` or `libcurl.so.4`)
+- **Cause:** Box86 cannot locate the native `armhf` libraries or fallback x86 libraries.
+- **Solution:** Verify that `BOX86_LD_LIBRARY_PATH` includes:
   ```text
   /usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf:/usr/lib/i386-linux-gnu:/lib/i386-linux-gnu
   ```
 
 ---
 
-## 4. Estabilidad de Unity y Valheim (Box64)
+## 4. Unity Engine and Valheim Stability (Box64)
 
-### Fallo: `Segmentation fault` o caídas intermitentes de Unity
-- **Causa:** El motor Unity realiza operaciones multihilo que violan el orden de memoria débil de ARM64.
-- **Solución:** Asegúrate de que `BOX64_DYNAREC_STRONGMEM=2` está activo. Puedes verificarlo o forzarlo en tu archivo `valheim.env`:
+### Issue: `Segmentation fault` or intermittent Unity crashes
+- **Cause:** Unity Engine executes multithreaded operations that violate ARM64's weakly-ordered memory model.
+- **Solution:** Ensure `BOX64_DYNAREC_STRONGMEM=2` is active. You can verify or enforce this in your `valheim.env`:
   ```ini
   BOX64_DYNAREC_STRONGMEM=2
   BOX64_DYNAREC_BIGBLOCK=0
   BOX64_DYNAREC_BLEEDING_EDGE=0
   ```
 
-### Fallo: `Unity crash` / `Failed to load steamclient.so`
-- **Causa:** Unity Steamworks busca `steamclient.so` en `~/.steam/sdk64/steamclient.so`.
-- **Diagnóstico:**
+### Issue: `Unity crash` / `Failed to load steamclient.so`
+- **Cause:** Unity Steamworks looks for `steamclient.so` at `~/.steam/sdk64/steamclient.so`.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml exec valheim ls -la /home/valheim/.steam/sdk64/
   ```
-- **Solución:** `valheim-wrapper` crea automáticamente un enlace simbólico desde `/opt/valheim/server/linux64/steamclient.so` hacia `/home/valheim/.steam/sdk64/steamclient.so`. Si no existe, créalo manualmente o reinicia el contenedor.
+- **Solution:** `valheim-wrapper` automatically creates a symlink from `/opt/valheim/server/linux64/steamclient.so` to `/home/valheim/.steam/sdk64/steamclient.so`. If missing, recreate it or restart the container.
 
 ---
 
-## 5. Red y Conectividad (Servidor no visible)
+## 5. Crossplay & PlayFab Party Issues
 
-### Fallo: El servidor arranca pero no aparece en la lista pública o no responde a conexiones directas
-- **Causa habitual:** Los puertos UDP no están abiertos en alguna de las dos capas de firewall (Oracle Cloud o Ubuntu).
-- **Diagnóstico en la máquina anfitriona:**
+### Issue: `DllNotFoundException: libParty.so` or `Symbol ogg_stream_packetin not found`
+- **Cause:** `libparty.so` requires Ogg functions but lacks `DT_NEEDED [libogg.so.0]` in its ELF headers, or Box64's Ogg wrapper is incomplete.
+- **Solution:** Ensure `scripts/patch-box64.sh` was executed during image build and that `valheim-wrapper` patches `libparty.so` with `patchelf --add-needed libogg.so.0`.
+
+---
+
+## 6. Networking and Connectivity (Server Not Visible)
+
+### Issue: Server starts but does not appear in public server browser or fails direct connect
+- **Common Cause:** UDP ports are blocked by one of the two independent firewall layers (Oracle Cloud Security List or Ubuntu host firewall).
+- **Diagnostics on host machine:**
   ```bash
-  # 1. Verificar si Docker tiene los puertos UDP escuchando en el host:
+  # 1. Verify Docker is listening on UDP ports:
   sudo ss -u -l -n | grep -E ':(2456|2457|2458)'
 
-  # 2. Comprobar reglas de firewall en Ubuntu:
+  # 2. Check Ubuntu host firewall rules:
   sudo iptables -L -n -v | grep 2456
-  # o si usas UFW:
+  # or if using UFW:
   sudo ufw status verbose
   ```
-- **Solución:**
-  1. Abre la consola de Oracle Cloud y añade en tu **Security List** una regla de entrada (Ingress) UDP en el rango `2456-2458` desde `0.0.0.0/0`.
-  2. En Ubuntu ejecuta:
+- **Solution:**
+  1. Open the Oracle Cloud Console and add an Ingress UDP rule for ports `2456-2458` from `0.0.0.0/0` in your **Security List**.
+  2. On the Ubuntu host, execute:
      ```bash
      sudo iptables -I INPUT 6 -m state --state NEW -p udp --dport 2456:2458 -j ACCEPT
      ```
 
 ---
 
-## 6. Permisos y Persistencia del Mundo
+## 7. Permissions and World Persistence
 
-### Fallo: `Permission denied` en `/config` o `/opt/valheim`
-- **Causa:** Los volúmenes montados en el host pertenecen a un usuario con UID/GID distinto al configurado en el contenedor (`PUID`/`PGID`).
-- **Diagnóstico:**
+### Issue: `Permission denied` on `/config` or `/opt/valheim`
+- **Cause:** Host volume directories are owned by a UID/GID different from the container's `PUID`/`PGID`.
+- **Diagnostics:**
   ```bash
   ls -ld valheim-data/config valheim-data/server
   id -u
   id -g
   ```
-- **Solución:** Ajusta la propiedad de las carpetas en el host:
+- **Solution:** Set ownership on the host:
   ```bash
   sudo chown -R 1000:1000 valheim-data/
   ```
-  Y asegúrate de que en `valheim.env` tienes:
+  And verify that `valheim.env` contains:
   ```ini
   PUID=1000
   PGID=1000
   ```
 
-### Fallo: `World not persisted` (el mundo se reinicia al recrear el contenedor)
-- **Causa:** El volumen de `/config` no está montado correctamente en el archivo `docker-compose.oracle-arm64.yml`.
-- **Solución:** Verifica que la sección de volúmenes monta `./valheim-data/config:/config` y que los archivos `.db` y `.fwl` se encuentran en `./valheim-data/config/worlds_local/`.
+### Issue: `World not persisted` (world resets when recreating container)
+- **Cause:** The `/config` volume is not mapped correctly in `docker-compose.oracle-arm64.yml`.
+- **Solution:** Verify the volume mount `./valheim-data/config:/config` is present and that world files `.db` and `.fwl` exist under `./valheim-data/config/worlds_local/`.
 
-### Fallo: `Container restarting` en bucle
-- **Causa:** Contraseña demasiado corta (`SERVER_PASS` menor a 5 caracteres o contenida en el nombre del servidor) o supervisorctl fallando.
-- **Diagnóstico:**
+### Issue: `Container restarting` in a crash loop
+- **Cause:** Password too short (`SERVER_PASS` less than 5 characters or identical to server name) or supervisor configuration error.
+- **Diagnostics:**
   ```bash
   docker compose -f docker-compose.oracle-arm64.yml logs valheim | tail -n 50
   ```
-- **Solución:** Cambia `SERVER_PASS` en `valheim.env` a una clave alfanumérica de al menos 8 caracteres y reinicia el contenedor.
+- **Solution:** Update `SERVER_PASS` in `valheim.env` to a secure alphanumeric string of at least 8 characters and restart the container.

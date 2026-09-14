@@ -1,132 +1,133 @@
-# Guía de Despliegue en Oracle Cloud (Ampere A1 ARM64)
+# Oracle Cloud Deployment Guide (Ampere A1 ARM64)
 
-Esta guía explica paso a paso cómo desplegar el servidor dedicado de Valheim en una máquina virtual **Oracle Cloud Infrastructure (OCI) Ampere A1 (AArch64 / ARM64)** con Ubuntu Server.
+This guide provides step-by-step instructions for deploying the Valheim Dedicated Server on an **Oracle Cloud Infrastructure (OCI) Ampere A1 (AArch64 / ARM64)** virtual machine running Ubuntu Server.
 
 ---
 
-## 1. Verificación Inicial de la Instancia
+## 1. Initial Instance Architecture Verification
 
-Conéctate por SSH a tu instancia de Oracle Cloud y verifica que la arquitectura de la máquina sea efectivamente ARM64:
+Connect via SSH to your Oracle Cloud instance and verify that the machine architecture is indeed ARM64:
 
 ```bash
 uname -m
 ```
 
-**Resultado esperado:**
+**Expected output:**
 ```text
 aarch64
 ```
 
-Si el resultado no es `aarch64`, estás en una máquina x86/AMD y no necesitas emulación ARM.
+If the output is not `aarch64`, you are running on an x86/AMD instance and do not require ARM dynamic binary translation.
 
 ---
 
-## 2. Instalación de Docker y Docker Compose
+## 2. Installing Docker and Docker Compose
 
-En Ubuntu Server, instala Docker Engine oficial y el plugin de Docker Compose:
+On Ubuntu Server, install official Docker Engine and the Docker Compose plugin:
 
 ```bash
-# Actualizar repositorios e instalar certificados
+# Update repositories and install prerequisites
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl gnupg
 
-# Añadir la clave GPG oficial de Docker
+# Add Docker's official GPG key
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-# Configurar el repositorio apt de Docker para ARM64
+# Set up the Docker apt repository for ARM64
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# Instalar Docker Engine, CLI y Compose Plugin
+# Install Docker Engine, CLI, and Compose Plugin
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Permitir a tu usuario actual ejecutar Docker sin sudo (opcional pero recomendado)
+# Allow current user to run Docker without sudo (optional but recommended)
 sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-Verifica la instalación de Docker:
+Verify the Docker installation:
 ```bash
 docker info | grep "Architecture"
 ```
-**Resultado esperado:**
+**Expected output:**
 ```text
 Architecture: aarch64
 ```
 
 ---
 
-## 3. Configuración de Red y Firewall (OCI y Ubuntu)
+## 3. Network and Firewall Configuration (OCI and Ubuntu)
 
-Valheim utiliza tráfico **UDP** en el rango **2456 a 2458**.
-En Oracle Cloud existen **dos capas independientes de cortafuegos** que deben permitir este tráfico:
+Valheim utilizes **UDP** traffic in the port range **2456 to 2458**.
+On Oracle Cloud, there are **two independent firewall layers** that must allow this traffic:
 
-### Capa 1: Oracle Cloud Security List / NSG (Consola Web)
-1. Inicia sesión en la consola de Oracle Cloud.
-2. Navega a: **Networking > Virtual Cloud Networks > [Tu VCN] > Security Lists > Default Security List**.
-3. Añade una **Ingress Rule**:
+### Layer 1: Oracle Cloud Security List / NSG (Web Console)
+1. Log in to the Oracle Cloud Console.
+2. Navigate to: **Networking > Virtual Cloud Networks > [Your VCN] > Security Lists > Default Security List**.
+3. Add an **Ingress Rule**:
    - **Source Type:** CIDR
    - **Source CIDR:** `0.0.0.0/0`
    - **IP Protocol:** `UDP`
    - **Source Port Range:** All
    - **Destination Port Range:** `2456-2458`
    - **Description:** `Valheim Dedicated Server UDP Ports`
-4. Guarda la regla.
+4. Save the rule.
 
-### Capa 2: Cortafuegos del Sistema Operativo Ubuntu (Host)
-Por defecto, las imágenes de Ubuntu en Oracle Cloud vienen con reglas estrictas de `iptables` o `ufw`.
-Abre los puertos en el cortafuegos del host:
+### Layer 2: Ubuntu OS Firewall (Host)
+By default, Ubuntu images on Oracle Cloud ship with strict `iptables` rules.
+Open the required UDP ports on the host:
 
 ```bash
-# Si utilizas UFW:
+# If using UFW:
 sudo ufw allow 2456:2458/udp
 sudo ufw reload
 
-# Si tu imagen de Oracle utiliza iptables directamente (habitual en Ubuntu OCI):
+# If using direct iptables (standard on Ubuntu OCI images):
 sudo iptables -I INPUT 6 -m state --state NEW -p udp --dport 2456:2458 -j ACCEPT
 sudo netfilter-persistent save || sudo iptables-save | sudo tee /etc/iptables/rules.v4
 ```
 
 > [!IMPORTANT]
-> Nunca uses `network_mode: host` o contenedores `--privileged` para modificar el firewall del host. La configuración de red debe realizarse directamente en la máquina anfitriona.
+> Never use `network_mode: host` or `--privileged` containers to manipulate host firewalls. Network rules must be explicitly managed on the host OS.
 
 ---
 
-## 4. Clonar el Fork y Preparar los Archivos
+## 4. Clone the Fork and Configure Environment
 
 ```bash
-# Clonar tu fork en el directorio home
-git clone https://github.com/<tu-usuario>/valheim-server-docker.git valheim-server
+# Clone the fork into your home directory
+git clone https://github.com/miguel-rf/valheim-server-docker-oracle-cloud.git valheim-server
 cd valheim-server
 
-# Crear directorios para los volúmenes persistentes
+# Create directories for persistent volumes
 mkdir -p valheim-data/config valheim-data/server
 
-# Crear archivo de configuración de entorno desde la plantilla
+# Create environment configuration file from template
 cp .env.example valheim.env
 ```
 
-Edita `valheim.env` con tu editor preferido (`nano valheim.env`):
-- Establece un `SERVER_NAME`.
-- Establece una contraseña segura en `SERVER_PASS` (mínimo 5 caracteres; no puede coincidir con el nombre).
-- Verifica que `PUID` y `PGID` coincidan con tu usuario de Ubuntu (`id -u` e `id -g`, habitualmente `1000`).
+Edit `valheim.env` with your preferred editor (`nano valheim.env`):
+- Set your `SERVER_NAME`.
+- Set a secure password in `SERVER_PASS` (minimum 5 characters; cannot be part of the server name).
+- Set `CROSSPLAY=true` if enabling crossplay for consoles (Switch 2, PS4/PS5, Xbox).
+- Verify `PUID` and `PGID` match your Ubuntu user (`id -u` and `id -g`, typically `1000` or `1001`).
 
 ---
 
-## 5. Construcción y Despliegue
+## 5. Build and Deployment
 
-Construye la imagen ARM64 optimizada para la CPU Ampere Altra (Neoverse N1):
+Build the ARM64 container image optimized for the Ampere Altra (Neoverse N1) CPU:
 
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml build
 ```
 
-Una vez completada la construcción, inicia el servicio en segundo plano:
+Once build completes, start the server in the background:
 
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml up -d
@@ -134,52 +135,52 @@ docker compose -f docker-compose.oracle-arm64.yml up -d
 
 ---
 
-## 6. Monitorización y Diagnósticos
+## 6. Monitoring and Diagnostics
 
-### Ver los logs en tiempo real
+### View live logs
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml logs -f
 ```
 
-Deberías observar:
-1. `valheim-bootstrap`: Inicialización y verificación de permisos.
-2. `valheim-updater`: Descarga inicial de Valheim desde SteamCMD usando Box86.
-3. `valheim-server`: Inicio del binario x86_64 a través de Box64 con `STRONGMEM=2`.
-4. Mensaje `Server is now listening on UDP query port 2457`.
+You should observe:
+1. `valheim-bootstrap`: Directory initialization and permission checks.
+2. `valheim-updater`: Initial Valheim download via SteamCMD running under Box86.
+3. `valheim-server`: Launch of `valheim_server.x86_64` under Box64 with `STRONGMEM=2`.
+4. Message: `Server is now listening on UDP query port 2457` (and PlayFab Join Code registration if `CROSSPLAY=true`).
 
-### Ejecutar diagnóstico de arquitectura
+### Run Architecture Diagnostics
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml exec valheim valheim-arch-diagnostics
 ```
 
-### Ejecutar el Smoke Test
+### Run Smoke Tests
 ```bash
 bash tests/oracle-arm64-smoke-test.sh
 ```
 
 ---
 
-## 7. Detener y Apagar de Forma Segura
+## 7. Graceful Stop and Shutdown
 
-Para detener el servidor permitiendo que guarde el mundo limpiamente:
+To stop the server while ensuring the world state is safely flushed to disk:
 
 ```bash
 docker compose -f docker-compose.oracle-arm64.yml stop
 ```
 
-Gracias al parámetro `stop_grace_period: 2m`, Docker otorga hasta 120 segundos para que Unity termine de escribir los archivos `.db` y `.fwl` antes de apagar el contenedor.
+With `stop_grace_period: 2m`, Docker grants up to 120 seconds for Unity to complete its `.db` and `.fwl` world save routine before issuing a SIGKILL.
 
 ---
 
-## 8. Actualización del Servidor
+## 8. Server Updates
 
-El contenedor cuenta con actualizaciones automáticas periódicas (`UPDATE_CRON`).
-Si deseas forzar una actualización manual inmediatamente:
+The container includes automated periodic update checks (`UPDATE_CRON`).
+To trigger an immediate manual update check:
 
 ```bash
-# Opción A: Enviar señal SIGHUP al actualizador
+# Option A: Send SIGHUP to the updater daemon
 docker compose -f docker-compose.oracle-arm64.yml exec valheim supervisorctl signal HUP valheim-updater
 
-# Opción B: Reiniciar el servicio completo
+# Option B: Restart the container
 docker compose -f docker-compose.oracle-arm64.yml restart
 ```

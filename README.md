@@ -6,12 +6,12 @@ Valheim Server in a Docker Container (with [BepInEx](#bepinexpack-valheim) and [
 This project is a fork of [community-valheim-tools/valheim-server-docker](https://github.com/community-valheim-tools/valheim-server-docker) with **native ARM64 / AArch64 support (Box64/Box86)** optimized for Oracle Cloud Ampere A1.
 
 > [!NOTE]
-> **Documentación del Fork ARM64:**
-> - [Arquitectura ARM64 (Box64 & Box86)](docs/ARM64.md)
-> - [Guía de Despliegue en Oracle Cloud Ampere A1](docs/ORACLE-CLOUD.md)
-> - [Resolución de Problemas (Troubleshooting ARM64)](docs/TROUBLESHOOTING-ARM64.md)
-> - [Registro de Cambios (CHANGELOG-ARM64)](CHANGELOG-ARM64.md)
-> - [Plantilla Compose Oracle ARM64](docker-compose.oracle-arm64.yml)
+> **ARM64 Fork Documentation:**
+> - [ARM64 Architecture (Box64 & Box86)](docs/ARM64.md)
+> - [Oracle Cloud Ampere A1 Deployment Guide](docs/ORACLE-CLOUD.md)
+> - [ARM64 Troubleshooting Guide](docs/TROUBLESHOOTING-ARM64.md)
+> - [Changelog (CHANGELOG-ARM64)](CHANGELOG-ARM64.md)
+> - [Oracle ARM64 Compose Template](docker-compose.oracle-arm64.yml)
 
 # Table of contents
 
