@@ -53,6 +53,7 @@ services:
       - WORLD_NAME=${WORLD_NAME:-Dedicated}
       - SERVER_PASS=${SERVER_PASS:-ChangeMeSecret123}
       - SERVER_PUBLIC=${SERVER_PUBLIC:-1}
+      - CROSSPLAY=${CROSSPLAY:-false}
 
       # Box64 Optimizations for Ampere A1 (ARM64)
       # STRONGMEM=2 guarantees memory consistency barrier insertion for Unity engine on ARM weak memory model
