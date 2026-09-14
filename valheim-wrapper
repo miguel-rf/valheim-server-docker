@@ -46,6 +46,19 @@ case "$ARCH" in
             ln -sf "$SERVER_DIR/linux64/steamclient.so" "$HOME/.steam/sdk64/steamclient.so" 2>/dev/null || true
         fi
 
+        # Crossplay (PlayFab) support on ARM64:
+        # Microsoft PlayFab's libparty.so relies on Ogg symbols without DT_NEEDED on libogg.so.0.
+        # Ensure libogg.so.0 is preloaded and linked as DT_NEEDED on libparty.so.
+        if [ "${CROSSPLAY:-false}" = true ]; then
+            export BOX64_LD_PRELOAD="libogg.so.0:${BOX64_LD_PRELOAD:-}"
+            PARTY_LIB="$SERVER_DIR/valheim_server_Data/Plugins/libparty.so"
+            if [ -f "$PARTY_LIB" ] && command -v patchelf >/dev/null 2>&1; then
+                if ! patchelf --print-needed "$PARTY_LIB" 2>/dev/null | grep -q "libogg.so.0"; then
+                    patchelf --add-needed libogg.so.0 "$PARTY_LIB" 2>/dev/null || true
+                fi
+            fi
+        fi
+
         echo "[VALHEIM-WRAPPER] Starting Valheim x86_64 via Box64 on $ARCH (STRONGMEM=$BOX64_DYNAREC_STRONGMEM)"
 
         # Use exec so Box64 replaces this shell and directly receives signals

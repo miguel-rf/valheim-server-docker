@@ -117,11 +117,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
 ARG BOX64_VERSION=v0.4.4
 ARG BOX64_TARGET=ARM64
+COPY scripts/patch-box64.sh /tmp/patch-box64.sh
 RUN mkdir -p /install/usr/local/bin /install/etc; \
     if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
         apt-get update && apt-get -y --no-install-recommends install \
-            build-essential cmake git ca-certificates python3 \
+            build-essential cmake git ca-certificates python3 libogg-dev \
         && git clone --depth 1 --branch "${BOX64_VERSION}" https://github.com/ptitSeb/box64.git /build/box64 \
+        && bash /tmp/patch-box64.sh /build/box64 \
         && cd /build/box64 \
         && mkdir build && cd build \
         && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -D${BOX64_TARGET}=ON -DARM_DYNAREC=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -214,6 +216,8 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
     libc6 \
     tini \
     file \
+    patchelf \
+    libogg0 \
     && if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
         apt-get -y --no-install-recommends install \
             libc6:armhf \

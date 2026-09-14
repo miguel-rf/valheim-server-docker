@@ -52,6 +52,7 @@ $ShellScripts = @(
     "valheim-arch-diagnostics",
     "steamcmd-wrapper",
     "valheim-wrapper",
+    "scripts/patch-box64.sh",
     "tests/oracle-arm64-smoke-test.sh"
 )
 
