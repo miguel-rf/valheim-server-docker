@@ -1,0 +1,84 @@
+# Docker Compose configuration for Valheim Dedicated Server on Oracle Cloud Ampere A1 (ARM64)
+# Architecture: Native linux/arm64 container with Box64 (Valheim x86_64) and Box86 (SteamCMD x86 32-bit)
+# NOTE: Do NOT add "platform: linux/amd64" here. This is a native ARM64 deployment.
+
+services:
+  valheim:
+    # Build locally from repository:
+    build:
+      context: .
+      args:
+        TARGETARCH: arm64
+        BOX64_TARGET: ADLINK   # Optimized for Ampere Altra (Neoverse N1)
+        BOX86_TARGET: ADLINK
+    image: valheim-server:arm64
+    container_name: valheim-server-arm64
+    restart: unless-stopped
+
+    # stop_grace_period is CRITICAL: Gives Unity enough time to flush and save
+    # world state to disk upon receiving SIGTERM/SIGINT before Docker issues SIGKILL.
+    stop_grace_period: 2m
+
+    # Required Linux capability for thread priority tuning in Valheim/Unity
+    cap_add:
+      - SYS_NICE
+
+    # Security: No privileged mode, no docker socket mount
+    security_opt:
+      - no-new-privileges:true
+
+    ports:
+      # Valheim gameplay and server query UDP ports
+      - "2456-2458:2456-2458/udp"
+      # Optional: Supervisor HTTP status interface (disabled by default)
+      # - "9001:9001/tcp"
+
+    volumes:
+      # World save files, configuration, adminlist, and automatic backups
+      - ./valheim-data/config:/config
+      # Dedicated server files downloaded via SteamCMD
+      - ./valheim-data/server:/opt/valheim
+
+    env_file:
+      - valheim.env
+
+    environment:
+      # User and group IDs matching host user permissions
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+
+      # Dedicated Server Core Settings
+      - SERVER_NAME=Valheim ARM64 Oracle
+      - WORLD_NAME=Dedicated
+      # Replace SERVER_PASS with a secure password (minimum 5 characters, cannot be in server name)
+      # Passwords should preferably be kept in valheim.env and never committed to git.
+      - SERVER_PASS=ChangeMeSecret123
+      - SERVER_PUBLIC=1
+
+      # Box64 Optimizations for Ampere A1 (ARM64)
+      # STRONGMEM=2 guarantees memory consistency barrier insertion for Unity engine on ARM weak memory model
+      - BOX64_DYNAREC_STRONGMEM=2
+      - BOX64_DYNAREC_BIGBLOCK=0
+      - BOX64_DYNAREC_BLEEDING_EDGE=0
+      - BOX64_LOG=1
+
+      # Automated Backups
+      - BACKUPS=true
+      - BACKUPS_CRON=0 * * * *
+      - BACKUPS_MAX_AGE=7
+      - BACKUPS_ZIP=true
+
+      # Automated Updates
+      - UPDATE_CRON=*/30 * * * *
+      - UPDATE_IF_IDLE=true
+
+    # Resource limits recommended for Oracle Cloud Ampere A1 (Always Free tier offers up to 4 OCPUs and 24 GB RAM)
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
