@@ -44,8 +44,8 @@ services:
 
     environment:
       # User and group IDs matching host user permissions
-      - PUID=1000
-      - PGID=1000
+      - PUID=${PUID:-1001}
+      - PGID=${PGID:-1001}
       - TZ=Etc/UTC
 
       # Dedicated Server Core Settings
