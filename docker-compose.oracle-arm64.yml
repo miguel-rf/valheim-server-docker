@@ -38,6 +38,8 @@ services:
       - ./valheim-data/config:/config
       # Dedicated server files downloaded via SteamCMD
       - ./valheim-data/server:/opt/valheim
+      # Box64 runtime configuration for Ampere A1 stability
+      - ./box64.box64rc:/etc/box64.box64rc:ro
 
     env_file:
       - valheim.env
@@ -47,7 +49,7 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 8G
+          memory: 16G
         reservations:
           cpus: '2.0'
-          memory: 4G
+          memory: 8G

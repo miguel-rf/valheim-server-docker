@@ -37,6 +37,9 @@ case "$ARCH" in
         export BOX64_DYNAREC_STRONGMEM="${BOX64_DYNAREC_STRONGMEM:-2}"
         export BOX64_DYNAREC_BIGBLOCK="${BOX64_DYNAREC_BIGBLOCK:-0}"
         export BOX64_DYNAREC_BLEEDING_EDGE="${BOX64_DYNAREC_BLEEDING_EDGE:-0}"
+        export BOX64_DYNAREC_SAFEFLAGS="${BOX64_DYNAREC_SAFEFLAGS:-2}"
+        export BOX64_DYNAREC_WAIT="${BOX64_DYNAREC_WAIT:-1}"
+        export BOX64_SHOWSEGV="${BOX64_SHOWSEGV:-1}"
         export BOX64_LOG="${BOX64_LOG:-1}"
 
         # Ensure Steam client library can be found by Unity Steamworks
